@@ -4,21 +4,21 @@
 
 #define MAX_BUF 1024
 
-
 struct file_t {
-  size_t filebytes_s;
-  char *cbytes;
+  size_t filesize_s;
+
+  unsigned char *read_buf;
 
   size_t namebuf_s;
   char *file_name;
-
-  FILE *file_ptr;
 };
 
-void get_file_size(const FILE *fp, size_t *file_byte_size, struct file_t *fs_t);
+long get_file_size(FILE *fp);
+void read_file(FILE *fp, long file_size, unsigned char *buffer);
+void print_file(unsigned char *buffer, long file_size);
 
 int main(int argc, char *argv[]) {
-  if (argc < 0 || argc > 1) {
+  if (argc < 0 || argc > 2) {
     puts("Useage: ./fv <file_name>");
     return -1;
   }
@@ -38,7 +38,12 @@ int main(int argc, char *argv[]) {
   fs_t->namebuf_s = MAX_BUF;
 
   // allocate memory for file_name 
-  fs_t->file_name = malloc(fs_t->namebuf_s * sizeof(char));
+  fs_t->file_name = (char *)malloc(fs_t->namebuf_s * sizeof(char));
+
+  // copy argv[1] into file_name 
+  if (strlen(argv[1]) < MAX_BUF) {
+    strncpy(fs_t->file_name, argv[1], MAX_BUF);
+  }
 
   // Open a file 
   FILE *fp = fopen(fs_t->file_name, "r");
@@ -48,24 +53,44 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // store the value from fp in fs_t struct 
-  fs_t->file_ptr = fp;
+  // get and set size of file 
+  fs_t->filesize_s = get_file_size(fp);
+  // allocate total number of bytes for read_buf 
+  fs_t->read_buf = (unsigned char *)malloc(fs_t->filesize_s * sizeof(unsigned char));
+  // read file 
+  read_file(fp, fs_t->filesize_s, fs_t->read_buf);
+  print_file(fs_t->read_buf, fs_t->filesize_s);  
 
-  // close fp to prevent duplicate file pointers
+  // close file_ptr 
   fclose(fp);
-
   // free allocated memory from the heap
+  free(fs_t->read_buf);
   free(fs_t->file_name);
 
   return 0;
 }
 
-void get_file_size(const FILE *fp, size_t *file_byte_size, struct file_t *fs_t) {
-  // get the size of the file and store it into filebytes_s 
-  size_t tempbytesize_s = 0;
-  char tempchar;
-  printf("Attempting to read total bytes from %s\n", fs_t->file_name);
-  while ((tempchar = fgetc(fs_t->file_ptr)) != EOF) {
-    fs_t->filebytes_s += tempbytesize_s;
+long get_file_size(FILE *fp) {
+  // Determine the size of the file
+  fseek(fp, 0, SEEK_END);  // Move to the end of the file
+  long fileSize = ftell(fp); // Get the current position (file size)
+  fseek(fp, 0, SEEK_SET);  // Move back to the beginning of the file
+  return fileSize;
+}
+
+void read_file(FILE *fp, long file_size, unsigned char *buffer) {
+  // Read the file content into the buffer 
+  size_t bytes_read = fread(buffer, 1, file_size, fp);
+  if (bytes_read != file_size) {
+      perror("Failed to read the entire file");
+      free(buffer);
+      fclose(fp);
   }
+}
+
+void print_file(unsigned char *buffer, long file_size) {
+  for (size_t i = 0; i < file_size && i < file_size; i++) {
+    printf("%02x ", buffer[i]);
+  }
+  printf("\n");
 }
